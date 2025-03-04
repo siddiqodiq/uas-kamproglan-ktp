@@ -1,0 +1,8 @@
+Flask
+Flask-SQLAlchemy
+Flask-JWT-Extended
+python-dotenv
+pydantic
+werkzeug
+python-dateutil
+mysqlclient
