@@ -117,6 +117,113 @@ def create_sks_ktp():
     db.session.commit()
     return jsonify(msg="Formulir SKS berhasil dibuat"), 201
 
+@app.route('/api/ktp/form_ktp/<int:id>', methods=['PATCH'])
+@jwt_required()
+@role_required('user')
+def update_form_ktp(id):
+    try:
+        data = FormKTPUpdate(**request.json)
+    except ValidationError as e:
+        return jsonify(e.errors()), 400
+    
+    form = FormKTP.query.get_or_404(id)
+    current_user = get_jwt_identity()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
+    
+    if form.petugas != pengguna.nama_lengkap:
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
+    
+    if data.nama_lengkap:
+        form.nama_lengkap = data.nama_lengkap
+    if data.opsi:
+        form.opsi = data.opsi.lower()
+    if data.dokumen_path:
+        form.dokumen_path = data.dokumen_path
+    
+    db.session.commit()
+    return jsonify(msg="Formulir berhasil diperbarui")
+
+@app.route('/api/ktp/sks_ktp/<int:id>', methods=['PATCH'])
+@jwt_required()
+@role_required('user')
+def update_sks_ktp(id):
+    try:
+        data = FormKTPUpdate(**request.json)
+    except ValidationError as e:
+        return jsonify(e.errors()), 400
+    
+    form = FormKTP.query.get_or_404(id)
+    current_user = get_jwt_identity()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
+    
+    if form.petugas != pengguna.nama_lengkap:
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
+    
+    if data.nama_lengkap:
+        form.nama_lengkap = data.nama_lengkap
+    if data.opsi:
+        form.opsi = data.opsi.lower()
+    if data.dokumen_path:
+        form.dokumen_path = data.dokumen_path
+    
+    db.session.commit()
+    return jsonify(msg="Formulir SKS berhasil diperbarui")
+
+@app.route('/api/ktp/form_ktp/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required('user')
+def delete_form_ktp(id):
+    form = FormKTP.query.get_or_404(id)
+    current_user = get_jwt_identity()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
+    
+    if form.petugas != pengguna.nama_lengkap:
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
+    
+    db.session.delete(form)
+    db.session.commit()
+    return jsonify(msg="Formulir berhasil dihapus")
+
+@app.route('/api/ktp/sks_ktp/<int:id>', methods=['DELETE'])
+@jwt_required()
+@role_required('user')
+def delete_sks_ktp(id):
+    form = FormKTP.query.get_or_404(id)
+    current_user = get_jwt_identity()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
+    
+    if form.petugas != pengguna.nama_lengkap:
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
+    
+    db.session.delete(form)
+    db.session.commit()
+    return jsonify(msg="Formulir SKS berhasil dihapus")
+
+@app.route('/api/ktp/form_ktp_sign/<int:id>', methods=['GET'])
+@jwt_required()
+@role_required('user')
+def download_signed_form_ktp(id):
+    form = FormKTP.query.get_or_404(id)
+    current_user = get_jwt_identity()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
+    
+    if form.petugas != pengguna.nama_lengkap:
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
+    
+    return jsonify(FormKTPResponse.from_orm(form).dict())
+
+@app.route('/api/ktp/sks_ktp_sign/<int:id>', methods=['GET'])
+@jwt_required()
+@role_required('user')
+def download_signed_sks_ktp(id):
+    form = FormKTP.query.get_or_404(id)
+    current_user = get_jwt_identity()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
+    
+    if form.petugas != pengguna.nama_lengkap:
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
+    
+    return jsonify(FormKTPResponse.from_orm(form).dict())
 
 # Form Routes (Admin Desa)
 @app.route('/api/ktp/form_ktp', methods=['GET'])
