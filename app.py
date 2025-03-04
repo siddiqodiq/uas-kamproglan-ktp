@@ -52,7 +52,7 @@ def register():
 def login():
     username = request.json.get('username')
     password = request.json.get('password')
-    pengguna = Pengguna.query.filter(Pengguna.username.ilike(username)).first()
+    pengguna = Pengguna.query.filter_by(username=username).first()
     
     if pengguna and pengguna.check_password(password):
         access_token = create_access_token(
@@ -83,7 +83,7 @@ def create_form_ktp():
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        pengguna=pengguna.nama_lengkap
+        petugas=pengguna.nama_lengkap
     )
     
     db.session.add(new_form)
@@ -110,14 +110,15 @@ def create_sks_ktp():
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        pengguna=pengguna.nama_lengkap
+        petugas=pengguna.nama_lengkap
     )
     
     db.session.add(new_form)
     db.session.commit()
     return jsonify(msg="Formulir SKS berhasil dibuat"), 201
 
-    # Form Routes (Admin Desa)
+
+# Form Routes (Admin Desa)
 @app.route('/api/ktp/form_ktp', methods=['GET'])
 @jwt_required()
 @role_required('admin')
@@ -138,6 +139,8 @@ def get_all_sks_ktp():
 def get_riwayat_surat():
     forms = FormKTP.query.all()
     return jsonify([FormKTPResponse.from_orm(f).dict() for f in forms])
+
+
 
 if __name__ == '__main__':
     with app.app_context():
