@@ -70,8 +70,14 @@ def create_form_ktp():
     try:
         data = FormKTPCreate(**request.json)
     except ValidationError as e:
-        return jsonify(e.errors()), 400
-    
+        # Format error menjadi list objek yang lebih rapi
+        formatted_errors = [
+            {"field": " -> ".join(str(loc) for loc in error["loc"]),
+             "message": error["msg"]}
+            for error in e.errors()
+        ]
+        return jsonify(errors=formatted_errors), 400
+
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
@@ -89,6 +95,8 @@ def create_form_ktp():
     db.session.add(new_form)
     db.session.commit()
     return jsonify(msg="Formulir berhasil dibuat"), 201
+
+
 
 @app.route('/api/ktp/sks_ktp', methods=['POST'])
 @jwt_required()
