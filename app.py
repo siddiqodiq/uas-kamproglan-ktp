@@ -52,7 +52,7 @@ def register():
 def login():
     username = request.json.get('username')
     password = request.json.get('password')
-    pengguna = Pengguna.query.filter_by(username=username).first()
+    pengguna = Pengguna.query.filter(Pengguna.username.ilike(username)).first()
     
     if pengguna and pengguna.check_password(password):
         access_token = create_access_token(
@@ -60,7 +60,7 @@ def login():
             additional_claims={'role': pengguna.role}
         )
         return jsonify(access_token=access_token)
-    return jsonify(msg="Username atau password salah"), 401
+    return jsonify(msg="Username atau password salah"), 4011
 
 # Form Routes (Warga Desa)
 @app.route('/api/ktp/form_ktp', methods=['POST'])
