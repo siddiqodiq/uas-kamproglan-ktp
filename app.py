@@ -60,7 +60,7 @@ def login():
             additional_claims={'role': pengguna.role}
         )
         return jsonify(access_token=access_token)
-    return jsonify(msg="Username atau password salah"), 4011
+    return jsonify(msg="Username atau password salah"), 401
 
 # Form Routes (Warga Desa)
 @app.route('/api/ktp/form_ktp', methods=['POST'])
