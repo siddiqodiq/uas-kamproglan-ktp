@@ -133,7 +133,3 @@ repository/
 
 ---
 
-## Lisensi
-
-Proyek ini menggunakan lisensi **MIT**.
-
