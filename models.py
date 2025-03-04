@@ -4,8 +4,8 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
-class Petugas(db.Model):
-    __tablename__ = 'petugas'
+class Pengguna(db.Model):
+    __tablename__ = 'pengguna'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(128), nullable=False)
@@ -27,5 +27,5 @@ class FormKTP(db.Model):
     opsi = db.Column(db.String(50), nullable=False)
     dokumen_path = db.Column(db.String(200))
     tanggal_dikeluarkan = db.Column(db.DateTime, default=datetime.now)
-    petugas = db.Column(db.String(100))
+    pengguna = db.Column(db.String(100))
     nomor_surat = db.Column(db.String(50))

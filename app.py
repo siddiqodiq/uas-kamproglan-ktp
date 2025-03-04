@@ -2,8 +2,8 @@ from flask import Flask, jsonify, request
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 )
-from models import db, Petugas, FormKTP
-from schemas import PetugasCreate, FormKTPCreate, FormKTPUpdate, FormKTPResponse
+from models import db, Pengguna, FormKTP
+from schemas import PenggunaCreate, FormKTPCreate, FormKTPUpdate, FormKTPResponse
 from pydantic import ValidationError
 from datetime import datetime
 from functools import wraps
@@ -30,21 +30,21 @@ def role_required(role):
 @app.route('/register', methods=['POST'])
 def register():
     try:
-        data = PetugasCreate(**request.json)
+        data = PenggunaCreate(**request.json)
     except ValidationError as e:
         return jsonify(e.errors()), 400
     
-    if Petugas.query.filter_by(username=data.username).first():
+    if Pengguna.query.filter_by(username=data.username).first():
         return jsonify(msg="Username sudah terdaftar"), 400
     
-    petugas = Petugas(
+    pengguna = Pengguna(
         username=data.username,
         nama_lengkap=data.nama_lengkap,
         jabatan=data.jabatan,
         role=data.role
     )
-    petugas.set_password(data.password)
-    db.session.add(petugas)
+    pengguna.set_password(data.password)
+    db.session.add(pengguna)
     db.session.commit()
     return jsonify(msg="Registrasi berhasil"), 201
 
@@ -52,12 +52,12 @@ def register():
 def login():
     username = request.json.get('username')
     password = request.json.get('password')
-    petugas = Petugas.query.filter_by(username=username).first()
+    pengguna = Pengguna.query.filter_by(username=username).first()
     
-    if petugas and petugas.check_password(password):
+    if pengguna and pengguna.check_password(password):
         access_token = create_access_token(
             identity=username,
-            additional_claims={'role': petugas.role}
+            additional_claims={'role': pengguna.role}
         )
         return jsonify(access_token=access_token)
     return jsonify(msg="Username atau password salah"), 401
@@ -73,9 +73,9 @@ def create_form_ktp():
         return jsonify(e.errors()), 400
     
     current_user = get_jwt_identity()
-    petugas = Petugas.query.filter_by(username=current_user).first()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if not petugas:
+    if not pengguna:
         return jsonify(msg="User tidak ditemukan"), 404
     
     new_form = FormKTP(
@@ -83,7 +83,7 @@ def create_form_ktp():
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        petugas=petugas.nama_lengkap
+        pengguna=pengguna.nama_lengkap
     )
     
     db.session.add(new_form)
@@ -100,9 +100,9 @@ def create_sks_ktp():
         return jsonify(e.errors()), 400
     
     current_user = get_jwt_identity()
-    petugas = Petugas.query.filter_by(username=current_user).first()
+    pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if not petugas:
+    if not pengguna:
         return jsonify(msg="User tidak ditemukan"), 404
     
     new_form = FormKTP(
@@ -110,7 +110,7 @@ def create_sks_ktp():
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        petugas=petugas.nama_lengkap
+        pengguna=pengguna.nama_lengkap
     )
     
     db.session.add(new_form)

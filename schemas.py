@@ -5,7 +5,7 @@ from datetime import datetime
 # Daftar opsi yang valid
 VALID_OPSI = ["sks", "pergantian", "baru", "perpanjangan"]
 
-class PetugasCreate(BaseModel):
+class PenggunaCreate(BaseModel):
     username: str
     password: str
     nama_lengkap: str
@@ -58,7 +58,7 @@ class FormKTPResponse(BaseModel):
     opsi: str
     dokumen_path: Optional[str]
     tanggal_dikeluarkan: Optional[datetime]
-    petugas: Optional[str]
+    pengguna: Optional[str]
     nomor_surat: Optional[str]
 
     class Config:
