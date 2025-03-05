@@ -6,3 +6,6 @@ pydantic
 werkzeug
 python-dateutil
 mysqlclient
+fastapi
+passlib
+python-multipart
