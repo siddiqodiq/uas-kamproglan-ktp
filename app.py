@@ -1,12 +1,20 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 )
-from models import db, Pengguna, FormKTP
-from schemas import PenggunaCreate, FormKTPCreate, FormKTPUpdate, FormKTPResponse
+from models import db, Pengguna, OrangTua, Anak, AdministrasiSurat
 from pydantic import ValidationError
 from datetime import datetime
 from functools import wraps
+import os
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+from sqlalchemy.orm import aliased
+from schemas import PenggunaCreate, SKLCreate, SKLSearch, SKLSign
 
 app = Flask(__name__)
 app.config.from_object('config.Config')
@@ -62,200 +70,264 @@ def login():
         return jsonify(access_token=access_token)
     return jsonify(msg="Username atau password salah"), 401
 
-# Form Routes (Warga Desa)
-@app.route('/api/ktp/form_ktp', methods=['POST'])
-@jwt_required()
-@role_required('user')
-def create_form_ktp():
+# SKL Routes
+def generate_skl_pdf(anak, ayah, ibu, administrasi):
+    folder_path = "temp"
+    filename = f"SKL_{anak.nama}.pdf"
+    filepath = os.path.join(folder_path, filename)
+    
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+    c = canvas.Canvas(filepath, pagesize=letter)
+    c.drawString(100, 750, f"SURAT KETERANGAN KELAHIRAN")
+    c.drawString(100, 700, f"Nomor: {administrasi.nomor_surat}")
+    
+    # Data Anak
+    c.drawString(100, 650, f"Nama Anak: {anak.nama}")
+    c.drawString(100, 630, f"Jenis Kelamin: {anak.jenis_kelamin}")
+    c.drawString(100, 610, f"Anak ke-: {anak.anak_ke}")
+    c.drawString(100, 590, f"Tempat Lahir: {anak.tempat_lahir}")
+    c.drawString(100, 570, f"Tanggal Lahir: {anak.tanggal_lahir.strftime('%d-%m-%Y')}")
+    
+    # Data Ayah
+    c.drawString(100, 530, f"Data Ayah:")
+    c.drawString(120, 510, f"NIK: {ayah.nik}")
+    c.drawString(120, 490, f"Nama: {ayah.nama}")
+    
+    # Data Ibu
+    c.drawString(100, 450, f"Data Ibu:")
+    c.drawString(120, 430, f"NIK: {ibu.nik}")
+    c.drawString(120, 410, f"Nama: {ibu.nama}")
+    
+    c.save()
+    return filepath
+
+def send_email(to_email, filepath, nama_anak):
+    # Konfigurasi email
+    sender_email = "your-email@gmail.com"
+    password = "your-app-password"
+    
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = to_email
+    msg['Subject'] = f"Surat Keterangan Kelahiran - {nama_anak}"
+    
+    body = f"Terlampir Surat Keterangan Kelahiran untuk {nama_anak}"
+    msg.attach(MIMEText(body, 'plain'))
+    
+    with open(filepath, "rb") as f:
+        attachment = MIMEApplication(f.read(), _subtype="pdf")
+        attachment.add_header('Content-Disposition', 'attachment', filename=os.path.basename(filepath))
+        msg.attach(attachment)
+    
     try:
-        data = FormKTPCreate(**request.json)
-    except ValidationError as e:
-        # Format error menjadi list objek yang lebih rapi
-        formatted_errors = [
-            {"field": " -> ".join(str(loc) for loc in error["loc"]),
-             "message": error["msg"]}
-            for error in e.errors()
-        ]
-        return jsonify(errors=formatted_errors), 400
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, password)
+        server.send_message(msg)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"Error sending email: {str(e)}")
+        return False
 
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if not pengguna:
-        return jsonify(msg="User tidak ditemukan"), 404
-    
-    new_form = FormKTP(
-        NIK=data.NIK,
-        nama_lengkap=data.nama_lengkap,
-        opsi=data.opsi.lower(),
-        dokumen_path=data.dokumen_path,
-        petugas=pengguna.nama_lengkap
-    )
-    
-    db.session.add(new_form)
-    db.session.commit()
-    return jsonify(msg="Formulir berhasil dibuat"), 201
-
-
-
-@app.route('/api/ktp/sks_ktp', methods=['POST'])
+@app.route('/api/skl/form_skl', methods=['POST'])
 @jwt_required()
-@role_required('user')
-def create_sks_ktp():
+def create_skl():
     try:
-        data = FormKTPCreate(**request.json)
+        data = SKLCreate(**request.json)
+        
+        # Buat atau dapatkan data orang tua
+        ayah = OrangTua.query.filter_by(nik=data.nik_ayah).first()
+        if not ayah:
+            ayah = OrangTua(
+                nik=data.nik_ayah,
+                nama=data.nama_ayah,
+                email=data.email_ayah,
+                tempat_tanggal_lahir=data.tempat_tanggal_lahir_ayah,
+                pekerjaan=data.pekerjaan_ayah,
+                agama=data.agama_ayah,
+                alamat=data.alamat_ayah
+            )
+            db.session.add(ayah)
+        
+        ibu = OrangTua.query.filter_by(nik=data.nik_ibu).first()
+        if not ibu:
+            ibu = OrangTua(
+                nik=data.nik_ibu,
+                nama=data.nama_ibu,
+                email=data.email_ibu,
+                tempat_tanggal_lahir=data.tempat_tanggal_lahir_ibu,
+                pekerjaan=data.pekerjaan_ibu,
+                agama=data.agama_ibu,
+                alamat=data.alamat_ibu
+            )
+            db.session.add(ibu)
+        
+        db.session.flush()
+        
+        # Buat data anak
+        anak = Anak(
+            nama=data.nama_anak,
+            jenis_kelamin=data.jenis_kelamin,
+            anak_ke=data.anak_ke,
+            tempat_lahir=data.tempat_lahir,
+            tanggal_lahir=data.tanggal_lahir,
+            kewarganegaraan=data.kewarganegaraan,
+            id_ayah=ayah.id,
+            id_ibu=ibu.id
+        )
+        db.session.add(anak)
+        db.session.flush()
+        
+        # Buat administrasi surat
+        nomor_surat = f"SKL/{datetime.now().strftime('%Y%m%d')}/{anak.id}"
+        administrasi = AdministrasiSurat(
+            id_anak=anak.id,
+            nomor_surat=nomor_surat,
+            tanggal_surat=datetime.now().date()
+        )
+        db.session.add(administrasi)
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Formulir SKL berhasil dibuat",
+            "data": {
+                "nomor_surat": nomor_surat,
+                "nama_anak": data.nama_anak,
+                "tanggal_pengajuan": datetime.now().strftime("%Y-%m-%d")
+            }
+        }), 201
+        
     except ValidationError as e:
-        return jsonify(e.errors()), 400
-    
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if not pengguna:
-        return jsonify(msg="User tidak ditemukan"), 404
-    
-    new_form = FormKTP(
-        NIK=data.NIK,
-        nama_lengkap=data.nama_lengkap,
-        opsi=data.opsi.lower(),
-        dokumen_path=data.dokumen_path,
-        petugas=pengguna.nama_lengkap
-    )
-    
-    db.session.add(new_form)
-    db.session.commit()
-    return jsonify(msg="Formulir SKS berhasil dibuat"), 201
+        return jsonify({
+            "status": "error",
+            "message": "Validasi gagal",
+            "errors": e.errors()
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
-@app.route('/api/ktp/form_ktp/<int:id>', methods=['PATCH'])
-@jwt_required()
-@role_required('user')
-def update_form_ktp(id):
-    try:
-        data = FormKTPUpdate(**request.json)
-    except ValidationError as e:
-        return jsonify(e.errors()), 400
-    
-    form = FormKTP.query.get_or_404(id)
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.petugas != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
-    
-    if data.nama_lengkap:
-        form.nama_lengkap = data.nama_lengkap
-    if data.opsi:
-        form.opsi = data.opsi.lower()
-    if data.dokumen_path:
-        form.dokumen_path = data.dokumen_path
-    
-    db.session.commit()
-    return jsonify(msg="Formulir berhasil diperbarui")
-
-@app.route('/api/ktp/sks_ktp/<int:id>', methods=['PATCH'])
-@jwt_required()
-@role_required('user')
-def update_sks_ktp(id):
-    try:
-        data = FormKTPUpdate(**request.json)
-    except ValidationError as e:
-        return jsonify(e.errors()), 400
-    
-    form = FormKTP.query.get_or_404(id)
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.petugas != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
-    
-    if data.nama_lengkap:
-        form.nama_lengkap = data.nama_lengkap
-    if data.opsi:
-        form.opsi = data.opsi.lower()
-    if data.dokumen_path:
-        form.dokumen_path = data.dokumen_path
-    
-    db.session.commit()
-    return jsonify(msg="Formulir SKS berhasil diperbarui")
-
-@app.route('/api/ktp/form_ktp/<int:id>', methods=['DELETE'])
-@jwt_required()
-@role_required('user')
-def delete_form_ktp(id):
-    form = FormKTP.query.get_or_404(id)
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.petugas != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
-    
-    db.session.delete(form)
-    db.session.commit()
-    return jsonify(msg="Formulir berhasil dihapus")
-
-@app.route('/api/ktp/sks_ktp/<int:id>', methods=['DELETE'])
-@jwt_required()
-@role_required('user')
-def delete_sks_ktp(id):
-    form = FormKTP.query.get_or_404(id)
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.petugas != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
-    
-    db.session.delete(form)
-    db.session.commit()
-    return jsonify(msg="Formulir SKS berhasil dihapus")
-
-@app.route('/api/ktp/form_ktp_sign/<int:id>', methods=['GET'])
-@jwt_required()
-@role_required('user')
-def download_signed_form_ktp(id):
-    form = FormKTP.query.get_or_404(id)
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.petugas != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
-    
-    return jsonify(FormKTPResponse.from_orm(form).dict())
-
-@app.route('/api/ktp/sks_ktp_sign/<int:id>', methods=['GET'])
-@jwt_required()
-@role_required('user')
-def download_signed_sks_ktp(id):
-    form = FormKTP.query.get_or_404(id)
-    current_user = get_jwt_identity()
-    pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.petugas != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
-    
-    return jsonify(FormKTPResponse.from_orm(form).dict())
-
-# Form Routes (Admin Desa)
-@app.route('/api/ktp/form_ktp', methods=['GET'])
-@jwt_required()
+@app.route('/api/skl/form_skl', methods=['GET'])
 @role_required('admin')
-def get_all_form_ktp():
-    forms = FormKTP.query.all()
-    return jsonify([FormKTPResponse.from_orm(f).dict() for f in forms])
+def get_all_skl():
+    skl_list = db.session.query(
+        Anak, AdministrasiSurat
+    ).join(
+        AdministrasiSurat
+    ).all()
+    
+    result = [{
+        'id': skl.Anak.id,
+        'nomor_surat': skl.AdministrasiSurat.nomor_surat,
+        'nama_anak': skl.Anak.nama,
+        'tanggal_surat': skl.AdministrasiSurat.tanggal_surat,
+        'status': 'Ditandatangani' if skl.AdministrasiSurat.tertanda else 'Menunggu'
+    } for skl in skl_list]
+    
+    return jsonify(result)
 
-@app.route('/api/ktp/sks_ktp', methods=['GET'])
-@jwt_required()
+@app.route('/api/skl/riwayat_skl', methods=['GET'])
 @role_required('admin')
-def get_all_sks_ktp():
-    forms = FormKTP.query.filter_by(opsi="sks").all()
-    return jsonify([FormKTPResponse.from_orm(f).dict() for f in forms])
+def get_skl_history():
+    return get_all_skl()
 
-@app.route('/api/ktp/riwayat_surat', methods=['GET'])
-@jwt_required()
+@app.route('/api/skl/form_skl/<nama_anak>', methods=['GET'])
 @role_required('admin')
-def get_riwayat_surat():
-    forms = FormKTP.query.all()
-    return jsonify([FormKTPResponse.from_orm(f).dict() for f in forms])
+def download_skl_form(nama_anak):
+    try:
+        ayah_alias = aliased(OrangTua)
+        ibu_alias = aliased(OrangTua)
 
+        skl = db.session.query(
+            Anak, AdministrasiSurat, ayah_alias, ibu_alias
+        ).join(
+            AdministrasiSurat
+        ).join(
+            ayah_alias, Anak.id_ayah == ayah_alias.id
+        ).join(
+            ibu_alias, Anak.id_ibu == ibu_alias.id
+        ).filter(
+            Anak.nama == nama_anak
+        ).first()
+        
+        if not skl:
+            return jsonify({
+                "status": "error",
+                "message": "Data tidak ditemukan"
+            }), 404
 
+        filename_nama = skl.Anak.nama.replace("_", " ")    
+        filepath = generate_skl_pdf(skl.Anak, skl[2], skl[3], skl.AdministrasiSurat)
+        return send_file(filepath, as_attachment=True, download_name=f"SKL_{filename_nama}.pdf")
+        
+    except Exception as e:
+        return jsonify({
+            "status": "download error",
+            "message": str(e)
+        }), 500
+
+@app.route('/api/skl/form_skl_sign', methods=['POST'])
+@role_required('admin')
+def sign_and_send_skl():
+    try:
+        
+        ayah_alias = aliased(OrangTua)
+        ibu_alias = aliased(OrangTua)
+
+        data = SKLSign(**request.json)
+        
+        skl = db.session.query(
+            Anak, AdministrasiSurat, ayah_alias, ibu_alias
+        ).join(
+            AdministrasiSurat
+        ).join(
+            ayah_alias, Anak.id_ayah == ayah_alias.id
+        ).join(
+            ibu_alias, Anak.id_ibu == ibu_alias.id
+        ).filter(
+            Anak.nama == data.nama_anak
+        ).first()
+        
+        if not skl:
+            return jsonify({
+                "status": "error",
+                "message": "Data tidak ditemukan"
+            }), 404
+            
+        filepath = generate_skl_pdf(skl.Anak, skl[2], skl[3], skl.AdministrasiSurat)
+        
+        if send_email(data.email_orang_tua, filepath, data.nama_anak):
+            skl.AdministrasiSurat.tertanda = get_jwt_identity()
+            skl.AdministrasiSurat.tanggal_surat = datetime.now().date()
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": "SKL berhasil ditandatangani dan dikirim via email"
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Gagal mengirim email"
+            }), 500
+            
+    except ValidationError as e:
+        return jsonify({
+            "status": "error",
+            "message": "Validasi gagal",
+            "errors": e.errors()
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 if __name__ == '__main__':
     with app.app_context():
