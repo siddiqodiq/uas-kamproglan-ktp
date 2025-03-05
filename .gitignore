@@ -883,3 +883,4 @@ __pycache__/fastapi.cpython-311.pyc
 .venv/Lib/site-packages/anyio-4.8.0.dist-info/LICENSE
 .venv/Lib/site-packages/anyio-4.8.0.dist-info/INSTALLER
 .venv/Lib/site-packages/anyio-4.8.0.dist-info/entry_points.txt
+__pycache__/models.cpython-311.pyc

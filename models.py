@@ -27,5 +27,5 @@ class FormKTP(db.Model):
     opsi = db.Column(db.String(50), nullable=False)
     dokumen_path = db.Column(db.String(200))
     tanggal_dikeluarkan = db.Column(db.DateTime, default=datetime.now)
-    petugas = db.Column(db.String(100))
+    pembuat = db.Column(db.String(100))
     nomor_surat = db.Column(db.String(50))

@@ -89,7 +89,7 @@ def create_form_ktp():
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        petugas=pengguna.nama_lengkap
+        pembuat=pengguna.nama_lengkap
     )
     
     db.session.add(new_form)
@@ -118,7 +118,7 @@ def create_sks_ktp():
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        petugas=pengguna.nama_lengkap
+        pembuat=pengguna.nama_lengkap
     )
     
     db.session.add(new_form)
@@ -138,7 +138,7 @@ def update_form_ktp(id):
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if form.petugas != pengguna.nama_lengkap:
+    if form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
     
     if data.nama_lengkap:
@@ -164,7 +164,7 @@ def update_sks_ktp(id):
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if form.petugas != pengguna.nama_lengkap:
+    if form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
     
     if data.nama_lengkap:
@@ -185,7 +185,7 @@ def delete_form_ktp(id):
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if form.petugas != pengguna.nama_lengkap:
+    if form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
     
     db.session.delete(form)
@@ -200,7 +200,7 @@ def delete_sks_ktp(id):
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if form.petugas != pengguna.nama_lengkap:
+    if form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
     
     db.session.delete(form)
@@ -215,7 +215,7 @@ def download_signed_form_ktp(id):
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if form.petugas != pengguna.nama_lengkap:
+    if form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
     
     return jsonify(FormKTPResponse.from_orm(form).dict())
@@ -228,7 +228,7 @@ def download_signed_sks_ktp(id):
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
-    if form.petugas != pengguna.nama_lengkap:
+    if form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
     
     return jsonify(FormKTPResponse.from_orm(form).dict())
