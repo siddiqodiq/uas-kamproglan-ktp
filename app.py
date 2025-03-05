@@ -13,15 +13,14 @@ app.config.from_object('config.Config')
 db.init_app(app)
 jwt = JWTManager(app)
 
-# Helper functions
 def role_required(role):
     def wrapper(fn):
         @wraps(fn)
         @jwt_required()
         def decorator(*args, **kwargs):
             claims = get_jwt()
-            if claims['role'] != role:
-                return jsonify(msg=f"Akses ditolak. Hanya {role} yang dapat mengakses fitur ini."), 403
+            if claims['role'] != role and claims['role'] != 'admin':  # Admin bisa mengakses endpoint role apa pun
+                return jsonify(msg=f"Akses ditolak. Hanya {role} atau admin yang dapat mengakses fitur ini."), 403
             return fn(*args, **kwargs)
         return decorator
     return wrapper
@@ -137,8 +136,10 @@ def update_form_ktp(id):
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.pembuat != pengguna.nama_lengkap:
+    claims = get_jwt()
+
+    # Jika bukan admin dan bukan pembuat formulir, tolak akses
+    if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
     
     if data.nama_lengkap:
@@ -163,8 +164,10 @@ def update_sks_ktp(id):
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.pembuat != pengguna.nama_lengkap:
+    claims = get_jwt()
+
+    # Jika bukan admin dan bukan pembuat formulir, tolak akses
+    if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
     
     if data.nama_lengkap:
@@ -184,8 +187,10 @@ def delete_form_ktp(id):
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.pembuat != pengguna.nama_lengkap:
+    claims = get_jwt()
+
+    # Jika bukan admin dan bukan pembuat formulir, tolak akses
+    if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
     
     db.session.delete(form)
@@ -199,8 +204,10 @@ def delete_sks_ktp(id):
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
-    
-    if form.pembuat != pengguna.nama_lengkap:
+    claims = get_jwt()
+
+    # Jika bukan admin dan bukan pembuat formulir, tolak akses
+    if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
     
     db.session.delete(form)
