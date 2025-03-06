@@ -26,6 +26,10 @@ def role_required(role):
     return wrapper
 
 # Auth Routes
+@app.route('/', methods=['GET'])
+def get_server():
+    return jsonify({'message': 'Server is running!'}), 200
+
 @app.route('/register', methods=['POST'])
 def register():
     try:
@@ -131,7 +135,7 @@ def update_form_ktp(id):
     try:
         data = FormKTPUpdate(**request.json)
     except ValidationError as e:
-        return jsonify(e.errors()), 400
+        return jsonify({"errors": e.errors()}), 400
     
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
@@ -262,9 +266,7 @@ def get_riwayat_surat():
     forms = FormKTP.query.all()
     return jsonify([FormKTPResponse.from_orm(f).dict() for f in forms])
 
-
-
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(host='127.0.0.1', debug=False, port=8000)# add port

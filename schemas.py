@@ -58,7 +58,7 @@ class FormKTPResponse(BaseModel):
     opsi: str
     dokumen_path: Optional[str]
     tanggal_dikeluarkan: Optional[datetime]
-    petugas: Optional[str]
+    pembuat: Optional[str] #petugas -> pembuat
     nomor_surat: Optional[str]
 
     class Config:
