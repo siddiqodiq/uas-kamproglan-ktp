@@ -50,6 +50,12 @@ class Config:
     JWT_SECRET_KEY = 'supersecretkey'
 ```
 
+Tambahkan UUID sebagai default untuk kolom `id` pada tabel `form_ktp`:
+
+```sql
+ALTER TABLE form_ktp MODIFY id CHAR(36) PRIMARY KEY DEFAULT (UUID());
+```
+
 ### 5. Jalankan Aplikasi
 
 ```sh

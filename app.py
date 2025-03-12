@@ -7,6 +7,8 @@ from schemas import PenggunaCreate, FormKTPCreate, FormKTPUpdate, FormKTPRespons
 from pydantic import ValidationError
 from datetime import datetime
 from functools import wraps
+from sqlalchemy.exc import IntegrityError
+import uuid
 
 app = Flask(__name__)
 app.config.from_object('config.Config')
@@ -20,7 +22,7 @@ def role_required(role):
         def decorator(*args, **kwargs):
             claims = get_jwt()
             if claims['role'] != role and claims['role'] != 'admin':  # Admin bisa mengakses endpoint role apa pun
-                return jsonify(msg=f"Akses ditolak. Hanya {role} atau admin yang dapat mengakses fitur ini."), 403
+                return jsonify(msg=f"Akses ditolak. Hanya {role} yang dapat mengakses fitur ini."), 403
             return fn(*args, **kwargs)
         return decorator
     return wrapper
@@ -65,7 +67,6 @@ def login():
         return jsonify(access_token=access_token)
     return jsonify(msg="Username atau password salah"), 401
 
-# Form Routes (Warga Desa)
 @app.route('/api/ktp/form_ktp', methods=['POST'])
 @jwt_required()
 @role_required('user')
@@ -87,37 +88,48 @@ def create_form():
         return jsonify(msg="User tidak ditemukan"), 404
     
     new_form = FormKTP(
+        id=str(uuid.uuid4()),  # Generate UUID untuk ID
         NIK=data.NIK,
         nama_lengkap=data.nama_lengkap,
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
-        pembuat=pengguna.nama_lengkap
+        pembuat=pengguna.nama_lengkap,
+        nomor_surat=data.nomor_surat  # Tambahkan nomor_surat
     )
     
-    db.session.add(new_form)
-    db.session.commit()
-    return jsonify(msg="Formulir berhasil dibuat"), 201
+    try:
+        db.session.add(new_form)
+        db.session.commit()
+        return jsonify(msg="Formulir berhasil dibuat", id=new_form.id), 201
+    except IntegrityError:  # Jika terjadi tabrakan UUID (kemungkinan sangat kecil)
+        db.session.rollback()
+        return jsonify(msg="Gagal membuat formulir"), 500
 
 
-@app.route('/api/ktp/form_ktp/<int:id>', methods=['PATCH'])
+
+# Endpoint PATCH (Update Form)
+@app.route('/api/ktp/form_ktp/<string:id>', methods=['PATCH'])
 @jwt_required()
 @role_required('user')
 def update_form(id):
+    try:
+        uuid_obj = uuid.UUID(id)  # Validasi UUID
+    except ValueError:
+        return jsonify(msg="Format UUID tidak valid."), 400
+
     try:
         data = FormKTPUpdate(**request.json)
     except ValidationError as e:
         return jsonify({"errors": e.errors()}), 400
     
-    form = FormKTP.query.get_or_404(id)
+    form = FormKTP.query.filter_by(id=str(uuid_obj)).first_or_404()
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     claims = get_jwt()
 
-    # Jika bukan admin dan bukan pembuat formulir, tolak akses
     if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
     
-    # Update field yang dikirim dalam request
     if data.NIK:
         form.NIK = data.NIK
     if data.nama_lengkap:
@@ -132,16 +144,21 @@ def update_form(id):
     db.session.commit()
     return jsonify(msg="Formulir berhasil diperbarui")
 
-@app.route('/api/ktp/form_ktp/<int:id>', methods=['DELETE'])
+# Endpoint DELETE (Hapus Form)
+@app.route('/api/ktp/form_ktp/<string:id>', methods=['DELETE'])
 @jwt_required()
 @role_required('user')
 def delete_form(id):
-    form = FormKTP.query.get_or_404(id)
+    try:
+        uuid_obj = uuid.UUID(id)
+    except ValueError:
+        return jsonify(msg="Format UUID tidak valid."), 400
+
+    form = FormKTP.query.filter_by(id=str(uuid_obj)).first_or_404()
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     claims = get_jwt()
 
-    # Jika bukan admin dan bukan pembuat formulir, tolak akses
     if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk menghapus formulir ini."), 403
     
@@ -149,12 +166,17 @@ def delete_form(id):
     db.session.commit()
     return jsonify(msg="Formulir berhasil dihapus")
 
-
-@app.route('/api/ktp/form_ktp/<int:id>', methods=['GET'])
+# Endpoint GET (Ambil Data Form)
+@app.route('/api/ktp/form_ktp/<string:id>', methods=['GET'])
 @jwt_required()
 @role_required('user')
 def get_form(id):
-    form = FormKTP.query.get_or_404(id)
+    try:
+        uuid_obj = uuid.UUID(id)
+    except ValueError:
+        return jsonify(msg="Format UUID tidak valid."), 400
+
+    form = FormKTP.query.filter_by(id=str(uuid_obj)).first_or_404()
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     

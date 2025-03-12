@@ -1,6 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
+from sqlalchemy.dialects.mysql import CHAR
+import uuid
 
 db = SQLAlchemy()
 
@@ -21,11 +23,11 @@ class Pengguna(db.Model):
 
 class FormKTP(db.Model):
     __tablename__ = 'form_ktp'
-    id = db.Column(db.Integer, primary_key=True)
-    NIK = db.Column(db.String(16), nullable=False)
+    id = db.Column(db.String(36), primary_key=True, unique=True, nullable=False)
+    NIK = db.Column(db.String(20), nullable=False)
     nama_lengkap = db.Column(db.String(100), nullable=False)
     opsi = db.Column(db.String(50), nullable=False)
-    dokumen_path = db.Column(db.String(200))
+    dokumen_path = db.Column(db.String(255))
     tanggal_dikeluarkan = db.Column(db.DateTime, default=datetime.now)
     pembuat = db.Column(db.String(100))
-    nomor_surat = db.Column(db.String(50))
+    nomor_surat = db.Column(db.String(255))
