@@ -35,18 +35,21 @@ def get_server():
 @app.route('/register', methods=['POST'])
 def register():
     try:
+        # Hapus field 'role' dari input pengguna
         data = PenggunaCreate(**request.json)
     except ValidationError as e:
         return jsonify(e.errors()), 400
     
+    # Cek apakah username sudah terdaftar
     if Pengguna.query.filter_by(username=data.username).first():
         return jsonify(msg="Username sudah terdaftar"), 400
     
+    # Buat pengguna baru dengan role otomatis 'user'
     pengguna = Pengguna(
         username=data.username,
         nama_lengkap=data.nama_lengkap,
         jabatan=data.jabatan,
-        role=data.role
+        role='user'  # Set role otomatis sebagai 'user'
     )
     pengguna.set_password(data.password)
     db.session.add(pengguna)
@@ -87,6 +90,14 @@ def create_form():
     if not pengguna:
         return jsonify(msg="User tidak ditemukan"), 404
     
+    # Cek jika user mencoba menginput nomor_surat
+    claims = get_jwt()
+    nomor_surat = request.json.get('nomor_surat')
+    
+    # Jika user biasa mencoba menginput nomor_surat, tolak permintaan
+    if claims['role'] != 'admin' and nomor_surat:
+        return jsonify(msg="Hanya admin yang dapat menginput nomor surat"), 403
+    
     new_form = FormKTP(
         id=str(uuid.uuid4()),  # Generate UUID untuk ID
         NIK=data.NIK,
@@ -94,7 +105,7 @@ def create_form():
         opsi=data.opsi.lower(),
         dokumen_path=data.dokumen_path,
         pembuat=pengguna.nama_lengkap,
-        nomor_surat=data.nomor_surat  # Tambahkan nomor_surat
+        nomor_surat=nomor_surat if claims['role'] == 'admin' else None  # Nomor surat hanya diisi oleh admin
     )
     
     try:
@@ -138,7 +149,11 @@ def update_form(id):
         form.opsi = data.opsi.lower()
     if data.dokumen_path:
         form.dokumen_path = data.dokumen_path
+    
+    # Hanya admin yang bisa update nomor_surat
     if data.nomor_surat:
+        if claims['role'] != 'admin':
+            return jsonify(msg="Hanya admin yang dapat mengupdate nomor surat"), 403
         form.nomor_surat = data.nomor_surat
     
     db.session.commit()
@@ -179,8 +194,9 @@ def get_form(id):
     form = FormKTP.query.filter_by(id=str(uuid_obj)).first_or_404()
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
+    claims = get_jwt()
     
-    if form.pembuat != pengguna.nama_lengkap:
+    if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengakses formulir ini."), 403
     
     return jsonify(FormKTPResponse.from_orm(form).dict())

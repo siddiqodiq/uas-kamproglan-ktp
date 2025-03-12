@@ -18,7 +18,6 @@ class FormKTPCreate(BaseModel):
     nama_lengkap: str
     opsi: Literal["baru", "pergantian", "perpanjangan", "sks"]  # Pilihan opsi hanya 4 ini
     dokumen_path: Optional[str] = None  # Opsional kecuali opsi = 'pergantian'
-    nomor_surat: str  # Wajib ada di body request
 
     @model_validator(mode="after")
     def check_dokumen_path(cls, values):
