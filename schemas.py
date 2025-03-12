@@ -32,9 +32,11 @@ class FormKTPCreate(BaseModel):
         return values
 
 class FormKTPUpdate(BaseModel):
+    NIK: Optional[str] = None
     nama_lengkap: Optional[str] = None
     opsi: Optional[Literal["sks", "pergantian", "baru", "perpanjangan"]] = None
     dokumen_path: Optional[str] = None
+    nomor_surat: Optional[str] = None
 
     @model_validator(mode='before')
     def check_dokumen_path(cls, values):

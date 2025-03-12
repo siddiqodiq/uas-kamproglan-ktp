@@ -66,14 +66,10 @@ def login():
     return jsonify(msg="Username atau password salah"), 401
 
 # Form Routes (Warga Desa)
-@app.route('/api/ktp/<string:form_type>', methods=['POST'])
+@app.route('/api/ktp/form_ktp', methods=['POST'])
 @jwt_required()
 @role_required('user')
-def create_form(form_type):
-    # Validasi jenis formulir
-    if form_type not in ['form_ktp', 'sks_ktp']:
-        return jsonify(msg="Jenis formulir tidak valid. Gunakan 'form_ktp' atau 'sks_ktp'."), 400
-
+def create_form():
     try:
         data = FormKTPCreate(**request.json)
     except ValidationError as e:
@@ -100,16 +96,13 @@ def create_form(form_type):
     
     db.session.add(new_form)
     db.session.commit()
-    return jsonify(msg=f"Formulir {form_type} berhasil dibuat"), 201
+    return jsonify(msg="Formulir berhasil dibuat"), 201
 
-@app.route('/api/ktp/<string:form_type>/<int:id>', methods=['PATCH'])
+
+@app.route('/api/ktp/form_ktp/<int:id>', methods=['PATCH'])
 @jwt_required()
 @role_required('user')
-def update_form(form_type, id):
-    # Validasi jenis formulir
-    if form_type not in ['form_ktp', 'sks_ktp']:
-        return jsonify(msg="Jenis formulir tidak valid. Gunakan 'form_ktp' atau 'sks_ktp'."), 400
-
+def update_form(id):
     try:
         data = FormKTPUpdate(**request.json)
     except ValidationError as e:
@@ -124,24 +117,25 @@ def update_form(form_type, id):
     if claims['role'] != 'admin' and form.pembuat != pengguna.nama_lengkap:
         return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengedit formulir ini."), 403
     
+    # Update field yang dikirim dalam request
+    if data.NIK:
+        form.NIK = data.NIK
     if data.nama_lengkap:
         form.nama_lengkap = data.nama_lengkap
     if data.opsi:
         form.opsi = data.opsi.lower()
     if data.dokumen_path:
         form.dokumen_path = data.dokumen_path
+    if data.nomor_surat:
+        form.nomor_surat = data.nomor_surat
     
     db.session.commit()
-    return jsonify(msg=f"Formulir {form_type} berhasil diperbarui")
+    return jsonify(msg="Formulir berhasil diperbarui")
 
-@app.route('/api/ktp/<string:form_type>/<int:id>', methods=['DELETE'])
+@app.route('/api/ktp/form_ktp/<int:id>', methods=['DELETE'])
 @jwt_required()
 @role_required('user')
-def delete_form(form_type, id):
-    # Validasi jenis formulir
-    if form_type not in ['form_ktp', 'sks_ktp']:
-        return jsonify(msg="Jenis formulir tidak valid. Gunakan 'form_ktp' atau 'sks_ktp'."), 400
-
+def delete_form(id):
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
@@ -153,23 +147,19 @@ def delete_form(form_type, id):
     
     db.session.delete(form)
     db.session.commit()
-    return jsonify(msg=f"Formulir {form_type} berhasil dihapus")
+    return jsonify(msg="Formulir berhasil dihapus")
 
 
-@app.route('/api/ktp/<string:form_type>_sign/<int:id>', methods=['GET'])
+@app.route('/api/ktp/form_ktp/<int:id>', methods=['GET'])
 @jwt_required()
 @role_required('user')
-def download_signed_form(form_type, id):
-    # Validasi jenis formulir
-    if form_type not in ['form_ktp', 'sks_ktp']:
-        return jsonify(msg="Jenis formulir tidak valid. Gunakan 'form_ktp' atau 'sks_ktp'."), 400
-
+def get_form(id):
     form = FormKTP.query.get_or_404(id)
     current_user = get_jwt_identity()
     pengguna = Pengguna.query.filter_by(username=current_user).first()
     
     if form.pembuat != pengguna.nama_lengkap:
-        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengunduh formulir ini."), 403
+        return jsonify(msg="Akses ditolak. Anda tidak memiliki izin untuk mengakses formulir ini."), 403
     
     return jsonify(FormKTPResponse.from_orm(form).dict())
 
