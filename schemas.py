@@ -14,10 +14,10 @@ class PenggunaCreate(BaseModel):
     role: Optional[str] = "user"
 
 class FormKTPCreate(BaseModel):
-    NIK: str = Field(..., min_length=16, max_length=16, regex=r"^\d+$")  # Harus 16 digit angka
+    NIK: str = Field(..., min_length=16, max_length=16, pattern=r"^\d{16}$", description="Harus 16 digit angka")
     nama_lengkap: str
-    opsi: Literal["baru", "pergantian", "perpanjangan", "sks"]  # Hanya menerima nilai ini
-    dokumen_path: Optional[str] = None  # Bisa None kecuali opsi = 'pergantian'
+    opsi: Literal["baru", "pergantian", "perpanjangan", "sks"]  # Pilihan opsi hanya 4 ini
+    dokumen_path: Optional[str] = None  # Opsional kecuali opsi = 'pergantian'
     nomor_surat: str  # Wajib ada di body request
 
     @model_validator(mode="after")
