@@ -1,9 +1,7 @@
-from pydantic import BaseModel, Field, model_validator, ValidationError
-from typing import Optional, Literal
-from datetime import datetime
-
-# Daftar opsi yang valid
-VALID_OPSI = ["sks", "pergantian", "baru", "perpanjangan"]
+from enum import Enum
+from pydantic import BaseModel, Field, field_validator
+from datetime import date, datetime
+from typing import Optional
 
 class PenggunaCreate(BaseModel):
     username: str
@@ -12,54 +10,67 @@ class PenggunaCreate(BaseModel):
     jabatan: Optional[str] = "Warga"
     role: Optional[str] = "user"
 
-class FormKTPCreate(BaseModel):
-    NIK: str
-    nama_lengkap: str
-    opsi: Literal["sks", "pergantian", "baru", "perpanjangan"]
-    dokumen_path: Optional[str] = None
-
-    @model_validator(mode='before')
-    def check_dokumen_path(cls, values):
-        opsi = values.get('opsi').lower()
-        dokumen_path = values.get('dokumen_path')
-
-        if opsi not in VALID_OPSI:
-            raise ValueError(f"Opsi tidak valid. Pilih salah satu dari: {VALID_OPSI}")
-
-        if opsi == "pergantian" and not dokumen_path:
-            raise ValueError("dokumen_path wajib diisi untuk opsi Pergantian")
-        
-        return values
-
-class FormKTPUpdate(BaseModel):
-    nama_lengkap: Optional[str] = None
-    opsi: Optional[Literal["sks", "pergantian", "baru", "perpanjangan"]] = None
-    dokumen_path: Optional[str] = None
-
-    @model_validator(mode='before')
-    def check_dokumen_path(cls, values):
-        opsi = values.get('opsi')
-        if opsi:
-            opsi = opsi.lower()
-            dokumen_path = values.get('dokumen_path')
-
-            if opsi not in VALID_OPSI:
-                raise ValueError(f"Opsi tidak valid. Pilih salah satu dari: {VALID_OPSI}")
-
-            if opsi == "pergantian" and not dokumen_path:
-                raise ValueError("dokumen_path wajib diisi untuk opsi Pergantian")
-        
-        return values
-
-class FormKTPResponse(BaseModel):
-    id: int
-    NIK: str
-    nama_lengkap: str
-    opsi: str
-    dokumen_path: Optional[str]
-    tanggal_dikeluarkan: Optional[datetime]
-    petugas: Optional[str]
-    nomor_surat: Optional[str]
+class DaftarSuratKematianSchema(BaseModel):
+    Tanggal_Terbit: date = None  # Tidak wajib, akan di-set otomatis di kode
+    Nomor_Surat: str
+    Penyimpanan: str
+    NIK_Terlapor: str
+    Nama_Terlapor: str = None
+    Nama_Petugas: str
+    Nama_Kades: str
+    Tanggal_Kematian: date  # Wajib diinput oleh pengguna
 
     class Config:
-        from_attributes = True
+        orm_mode = True
+
+class GabunganKeluargaSchema(BaseModel):
+    NIK: str
+    Nama_Lengkap: str
+    Jenis_Kelamin: Optional[str] = None
+    Tanggal_Lahir: Optional[date] = None
+    Kewarganegaraan: Optional[str] = None
+    Agama: Optional[str] = None
+    Alamat: Optional[str] = None
+    Status_Hidup_Meninggal: Optional[str] = None
+    Tgl_Kematian: Optional[date] = None
+
+    class Config:
+        orm_mode = True
+
+class JenisEnum(str, Enum):
+    surat = "Surat"
+    non_surat = "Non-Surat"
+
+class DetailKematianSchema(BaseModel):
+    NIK: str
+    Tgl_Kematian: str  
+    Jam_Kematian: str
+    Lokasi_Kematian: str
+    Penyebab_Kematian: str
+    Hubungan_dengan_Terlapor: str
+    Jenis: JenisEnum
+
+    @field_validator("Tgl_Kematian")
+    def validate_tgl_kematian(cls, value):
+        try:
+            # Pertama, pastikan formatnya valid
+            tgl_kematian = datetime.strptime(value, "%Y-%m-%d").date()
+        except ValueError:
+            raise ValueError("Format tanggal tidak valid. Gunakan format YYYY-MM-DD.")
+        
+        # Kedua, pastikan tanggal tidak melebihi hari ini
+        if tgl_kematian > datetime.now().date():
+            raise ValueError("Tanggal kematian tidak boleh melebihi tanggal hari ini.")
+        
+        return value
+
+    @field_validator("Jam_Kematian")
+    def validate_jam_kematian(cls, value):
+        try:
+            datetime.strptime(value, "%H:%M")  # Pastikan format HH:MM
+            return value
+        except ValueError:
+            raise ValueError("Format jam tidak valid. Gunakan format HH:MM.")
+        
+    class Config:
+        orm_mode = True
