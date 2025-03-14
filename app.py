@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt, get_jwt_identity
 )
+from datetime import timedelta
 from models import db, Pengguna, GabunganKeluarga
 from schemas import PenggunaCreate
 from pydantic import ValidationError
@@ -62,14 +63,17 @@ def register():
 def login():
     username = request.json.get('username')
     password = request.json.get('password')
+
     pengguna = Pengguna.query.filter_by(username=username).first()
 
     if pengguna and pengguna.check_password(password):
         access_token = create_access_token(
             identity=username,
-            additional_claims={'role': pengguna.role}
+            additional_claims={'role': pengguna.role},
+            expires_delta=timedelta(minutes=15)
         )
         return jsonify(access_token=access_token)
+
     return jsonify(msg="Username atau password salah"), 401
 
 
