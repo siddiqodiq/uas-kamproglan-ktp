@@ -1,4 +1,3 @@
-import jwt  # Ensure you have the PyJWT library installed
 from flask_jwt_extended import jwt_required
 from flask import Flask, jsonify, request
 from flask_jwt_extended import (
